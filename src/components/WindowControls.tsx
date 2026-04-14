@@ -83,6 +83,22 @@ const HISTORY_ICON = (
     <polyline points="12 6 12 12 16 14" />
   </svg>
 );
+const SETTINGS_ICON = (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1-1.4 1.4l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V19a1 1 0 0 1-2 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 1 1-1.4-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H9a1 1 0 0 1 0-2h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 1.4-1.4l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V9a1 1 0 0 1 2 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H19a1 1 0 0 1 0 2h-.2a1 1 0 0 0-.9.6Z" />
+  </svg>
+);
 
 interface WindowControlsProps {
   /** Triggers the overlay hide animation sequence. */
@@ -112,6 +128,7 @@ interface WindowControlsProps {
    * Omit to hide the button entirely.
    */
   onNewConversation?: () => void;
+  onOpenSettings?: () => void;
 }
 
 /** Decorative dot color for inactive buttons. */
@@ -124,6 +141,7 @@ export const WindowControls = memo(function WindowControls({
   canSave = false,
   onHistoryOpen,
   onNewConversation,
+  onOpenSettings,
 }: WindowControlsProps) {
   // Disabled only when there is nothing to save yet and the conversation hasn't
   // been saved. Once saved the button stays active so the user can unsave.
@@ -223,6 +241,18 @@ export const WindowControls = memo(function WindowControls({
                 className="w-7 h-7 flex items-center justify-center rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors duration-150 cursor-pointer"
               >
                 {HISTORY_ICON}
+              </button>
+            </Tooltip>
+          )}
+          {onOpenSettings !== undefined && (
+            <Tooltip label="API settings">
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                aria-label="Open API settings"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors duration-150 cursor-pointer"
+              >
+                {SETTINGS_ICON}
               </button>
             </Tooltip>
           )}

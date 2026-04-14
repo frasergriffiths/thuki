@@ -158,7 +158,7 @@ export function useOllama(
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: 'Something went wrong\nCould not reach Ollama.',
+            content: 'Something went wrong\nCould not reach provider API.',
             errorKind: 'Other' as const,
           },
         ]);

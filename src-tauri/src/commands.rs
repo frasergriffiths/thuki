@@ -6,10 +6,30 @@ use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, State};
 use tokio_util::sync::CancellationToken;
 
-/// Default configuration constants as the application currently lacks a Settings UI.
-pub const DEFAULT_OLLAMA_URL: &str = "http://127.0.0.1:11434";
-pub const DEFAULT_MODEL_NAME: &str = "gemma4:e2b";
+/// Default API endpoint/model used on first launch before the user sets a provider.
+pub const DEFAULT_API_BASE_URL: &str = "https://api.anthropic.com";
+pub const DEFAULT_MODEL_NAME: &str = "claude-3-7-sonnet-latest";
 const DEFAULT_SYSTEM_PROMPT: &str = include_str!("../prompts/system_prompt.txt");
+
+/// Runtime-configurable provider credentials and endpoint.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiConfig {
+    pub base_url: String,
+    pub api_key: String,
+}
+
+/// Shared in-memory API configuration state, editable from the frontend settings UI.
+pub struct ApiConfigState(pub Mutex<ApiConfig>);
+
+impl ApiConfigState {
+    pub fn new() -> Self {
+        Self(Mutex::new(ApiConfig {
+            base_url: DEFAULT_API_BASE_URL.to_string(),
+            api_key: String::new(),
+        }))
+    }
+}
 
 /// Classifies the kind of error returned from the Ollama backend.
 /// Used by the frontend to pick accent bar color and display copy.
@@ -38,10 +58,11 @@ pub fn classify_http_error(status: u16) -> OllamaError {
     match status {
         404 => OllamaError {
             kind: OllamaErrorKind::ModelNotFound,
-            message: format!(
-                "Model not found\nRun: ollama pull {} in a terminal.",
-                DEFAULT_MODEL_NAME
-            ),
+            message: format!("Model not found\nCheck model name: {DEFAULT_MODEL_NAME}"),
+        },
+        401 | 403 => OllamaError {
+            kind: OllamaErrorKind::Other,
+            message: "Authentication failed\nCheck API key and provider permissions.".to_string(),
         },
         _ => OllamaError {
             kind: OllamaErrorKind::Other,
@@ -55,12 +76,13 @@ pub fn classify_stream_error(e: &reqwest::Error) -> OllamaError {
     if e.is_connect() || e.is_timeout() {
         OllamaError {
             kind: OllamaErrorKind::NotRunning,
-            message: "Ollama isn't running\nStart Ollama and try again.".to_string(),
+            message: "Provider unreachable\nCheck base URL and your network connection."
+                .to_string(),
         }
     } else {
         OllamaError {
             kind: OllamaErrorKind::Other,
-            message: "Something went wrong\nCould not reach Ollama.".to_string(),
+            message: "Something went wrong\nCould not reach provider API.".to_string(),
         }
     }
 }
@@ -93,37 +115,30 @@ pub struct ChatMessage {
     pub images: Option<Vec<String>>,
 }
 
-/// Sampling parameters for Ollama `/api/chat`, following Google's recommended
-/// configuration for Gemma4 models.
 #[derive(Serialize)]
-struct OllamaOptions {
-    temperature: f64,
-    top_p: f64,
-    top_k: u32,
+struct AnthropicMessageContent {
+    #[serde(rename = "type")]
+    content_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<serde_json::Value>,
 }
 
-/// Request payload for Ollama `/api/chat` endpoint.
 #[derive(Serialize)]
-struct OllamaChatRequest {
+struct AnthropicMessage {
+    role: String,
+    content: Vec<AnthropicMessageContent>,
+}
+
+#[derive(Serialize)]
+struct AnthropicRequest {
     model: String,
-    messages: Vec<ChatMessage>,
+    max_tokens: u32,
     stream: bool,
-    think: bool,
-    options: OllamaOptions,
-}
-
-/// Nested message object in Ollama `/api/chat` response chunks.
-#[derive(Deserialize)]
-struct OllamaChatResponseMessage {
-    content: Option<String>,
-    thinking: Option<String>,
-}
-
-/// Expected structured response chunk from Ollama `/api/chat`.
-#[derive(Deserialize)]
-struct OllamaChatResponse {
-    message: Option<OllamaChatResponseMessage>,
-    done: Option<bool>,
+    messages: Vec<AnthropicMessage>,
+    system: String,
+    thinking: serde_json::Value,
 }
 
 /// Holds the active cancellation token for the current generation request.
@@ -237,6 +252,31 @@ pub fn get_model_config(model_config: tauri::State<'_, ModelConfig>) -> serde_js
     serde_json::json!({ "active": model_config.active, "all": model_config.all })
 }
 
+/// Returns the current API configuration for the provider settings modal.
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(not(coverage), tauri::command)]
+pub fn get_api_config(config: tauri::State<'_, ApiConfigState>) -> ApiConfig {
+    config.0.lock().unwrap().clone()
+}
+
+/// Updates API settings at runtime. Empty API keys are allowed so users can clear state.
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg_attr(not(coverage), tauri::command)]
+pub fn update_api_config(
+    base_url: String,
+    api_key: String,
+    config: tauri::State<'_, ApiConfigState>,
+) -> Result<(), String> {
+    let trimmed_url = base_url.trim().trim_end_matches('/').to_string();
+    if trimmed_url.is_empty() {
+        return Err("Base URL cannot be empty.".to_string());
+    }
+    let mut guard = config.0.lock().map_err(|e| e.to_string())?;
+    guard.base_url = trimmed_url;
+    guard.api_key = api_key.trim().to_string();
+    Ok(())
+}
+
 /// Core streaming logic for Ollama `/api/chat`, separated from the Tauri
 /// command for testability. Uses `tokio::select!` to race each chunk read
 /// against the cancellation token, ensuring the HTTP connection is dropped
@@ -246,26 +286,67 @@ pub async fn stream_ollama_chat(
     endpoint: &str,
     model: &str,
     messages: Vec<ChatMessage>,
+    system_prompt: &str,
+    api_key: &str,
     think: bool,
     client: &reqwest::Client,
     cancel_token: CancellationToken,
     on_chunk: impl Fn(StreamChunk),
 ) -> String {
-    let request_payload = OllamaChatRequest {
+    let anthropic_messages: Vec<AnthropicMessage> = messages
+        .into_iter()
+        .filter(|m| m.role != "system")
+        .map(|m| {
+            let mut content = vec![AnthropicMessageContent {
+                content_type: "text".to_string(),
+                text: Some(m.content),
+                source: None,
+            }];
+            if let Some(images) = m.images {
+                for img in images {
+                    content.push(AnthropicMessageContent {
+                        content_type: "image".to_string(),
+                        text: None,
+                        source: Some(serde_json::json!({
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": img
+                        })),
+                    });
+                }
+            }
+            AnthropicMessage {
+                role: m.role,
+                content,
+            }
+        })
+        .collect();
+
+    let thinking = if think {
+        serde_json::json!({ "type": "enabled", "budget_tokens": 1024 })
+    } else {
+        serde_json::json!({ "type": "disabled" })
+    };
+
+    let request_payload = AnthropicRequest {
         model: model.to_string(),
-        messages,
+        max_tokens: 4096,
+        messages: anthropic_messages,
         stream: true,
-        think,
-        options: OllamaOptions {
-            temperature: 1.0,
-            top_p: 0.95,
-            top_k: 64,
-        },
+        system: system_prompt.to_string(),
+        thinking,
     };
 
     let mut accumulated = String::new();
 
-    let res = client.post(endpoint).json(&request_payload).send().await;
+    let res = client
+        .post(endpoint)
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .header("content-type", "application/json")
+        .json(&request_payload)
+        .send()
+        .await;
 
     match res {
         Ok(response) => {
@@ -301,28 +382,56 @@ pub async fn stream_ollama_chat(
                                             continue;
                                         }
 
-                                        if let Ok(json) =
-                                            serde_json::from_str::<OllamaChatResponse>(trimmed)
-                                        {
-                                            if let Some(ref msg) = json.message {
-                                                if let Some(ref thinking) = msg.thinking {
-                                                    if !thinking.is_empty() {
-                                                        on_chunk(StreamChunk::ThinkingToken(
-                                                            thinking.clone(),
-                                                        ));
-                                                    }
-                                                }
-                                                if let Some(ref token) = msg.content {
-                                                    if !token.is_empty() {
-                                                        accumulated.push_str(token);
-                                                        on_chunk(StreamChunk::Token(
-                                                            token.clone(),
-                                                        ));
-                                                    }
-                                                }
-                                            }
-                                            if let Some(true) = json.done {
+                                        if let Some(data) = trimmed.strip_prefix("data: ") {
+                                            if data == "[DONE]" {
                                                 on_chunk(StreamChunk::Done);
+                                                continue;
+                                            }
+                                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                                let event_type = json.get("type").and_then(|v| v.as_str()).unwrap_or_default();
+                                                match event_type {
+                                                    "content_block_delta" => {
+                                                        let delta_type = json
+                                                            .get("delta")
+                                                            .and_then(|d| d.get("type"))
+                                                            .and_then(|v| v.as_str())
+                                                            .unwrap_or_default();
+                                                        if delta_type == "thinking_delta" {
+                                                            if let Some(token) = json
+                                                                .get("delta")
+                                                                .and_then(|d| d.get("thinking"))
+                                                                .and_then(|v| v.as_str())
+                                                            {
+                                                                if !token.is_empty() {
+                                                                    on_chunk(StreamChunk::ThinkingToken(token.to_string()));
+                                                                }
+                                                            }
+                                                        } else if let Some(token) = json
+                                                            .get("delta")
+                                                            .and_then(|d| d.get("text"))
+                                                            .and_then(|v| v.as_str())
+                                                        {
+                                                            if !token.is_empty() {
+                                                                accumulated.push_str(token);
+                                                                on_chunk(StreamChunk::Token(token.to_string()));
+                                                            }
+                                                        }
+                                                    }
+                                                    "message_stop" => on_chunk(StreamChunk::Done),
+                                                    "error" => {
+                                                        on_chunk(StreamChunk::Error(OllamaError {
+                                                            kind: OllamaErrorKind::Other,
+                                                            message: json
+                                                                .get("error")
+                                                                .and_then(|e| e.get("message"))
+                                                                .and_then(|m| m.as_str())
+                                                                .map(|m| format!("Provider error\n{m}"))
+                                                                .unwrap_or_else(|| "Provider error\nUnknown error".to_string()),
+                                                        }));
+                                                        return accumulated;
+                                                    }
+                                                    _ => {}
+                                                }
                                             }
                                         }
                                     }
@@ -364,8 +473,17 @@ pub async fn ask_ollama(
     history: State<'_, ConversationHistory>,
     system_prompt: State<'_, SystemPrompt>,
     model_config: State<'_, ModelConfig>,
+    api_config: State<'_, ApiConfigState>,
 ) -> Result<(), String> {
-    let endpoint = format!("{}/api/chat", DEFAULT_OLLAMA_URL.trim_end_matches('/'));
+    let api = api_config.0.lock().map_err(|e| e.to_string())?.clone();
+    if api.api_key.trim().is_empty() {
+        let _ = on_event.send(StreamChunk::Error(OllamaError {
+            kind: OllamaErrorKind::Other,
+            message: "Missing API key\nSet your provider API key in Settings.".to_string(),
+        }));
+        return Ok(());
+    }
+    let endpoint = format!("{}/v1/messages", api.base_url.trim_end_matches('/'));
     let cancel_token = CancellationToken::new();
     generation.set(cancel_token.clone());
 
@@ -397,23 +515,21 @@ pub async fn ask_ollama(
     // The user message is NOT yet committed to history — it is only added
     // after a response (including partial/cancelled) to prevent orphaned
     // messages on errors.
-    let (epoch_at_start, messages) = {
+    let (epoch_at_start, messages, system_text) = {
         let conv = history.messages.lock().unwrap();
         let epoch = history.epoch.load(Ordering::SeqCst);
-        let mut msgs = vec![ChatMessage {
-            role: "system".to_string(),
-            content: system_prompt.0.clone(),
-            images: None,
-        }];
+        let mut msgs = Vec::new();
         msgs.extend(conv.clone());
         msgs.push(user_msg.clone());
-        (epoch, msgs)
+        (epoch, msgs, system_prompt.0.clone())
     };
 
     let accumulated = stream_ollama_chat(
         &endpoint,
         &model_config.active,
         messages,
+        &system_text,
+        &api.api_key,
         think,
         &client,
         cancel_token.clone(),
