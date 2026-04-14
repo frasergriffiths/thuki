@@ -716,6 +716,7 @@ pub fn run() {
             app.manage(commands::ConversationHistory::new());
             app.manage(commands::SystemPrompt(commands::load_system_prompt()));
             app.manage(commands::load_model_config());
+            app.manage(commands::ApiConfigState::new());
 
             // ── SQLite database for conversation history ──────────
             let app_data_dir = app
@@ -741,6 +742,10 @@ pub fn run() {
             commands::reset_conversation,
             #[cfg(not(coverage))]
             commands::get_model_config,
+            #[cfg(not(coverage))]
+            commands::get_api_config,
+            #[cfg(not(coverage))]
+            commands::update_api_config,
             #[cfg(not(coverage))]
             history::save_conversation,
             #[cfg(not(coverage))]

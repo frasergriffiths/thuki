@@ -20,6 +20,7 @@ import { OnboardingView } from './view/onboarding/index';
 import type { OnboardingStage } from './view/onboarding/index';
 import { HistoryPanel } from './components/HistoryPanel';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
+import { ApiSettingsModal } from './components/ApiSettingsModal';
 import type { AttachedImage } from './types/image';
 import { MAX_IMAGE_SIZE_BYTES } from './types/image';
 import { quote } from './config';
@@ -27,7 +28,7 @@ import { COMMANDS, SCREEN_CAPTURE_PLACEHOLDER } from './config/commands';
 import './App.css';
 
 /** Fallback model name used before get_model_config resolves at startup. */
-const DEFAULT_MODEL_FALLBACK = 'gemma4:e2b';
+const DEFAULT_MODEL_FALLBACK = 'claude-3-7-sonnet-latest';
 
 const OVERLAY_VISIBILITY_EVENT = 'thuki://visibility';
 const ONBOARDING_EVENT = 'thuki://onboarding';
@@ -211,6 +212,9 @@ function App() {
     active: string;
     all: string[];
   } | null>(null);
+  const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState('https://api.anthropic.com');
+  const [apiKey, setApiKey] = useState('');
 
   /**
    * True when the window is near the screen bottom and should grow upward.
@@ -1122,7 +1126,20 @@ function App() {
     void invoke<{ active: string; all: string[] }>('get_model_config').then(
       setModelConfig,
     );
+    void invoke<{ baseUrl: string; apiKey: string }>('get_api_config').then(
+      (config) => {
+        setApiBaseUrl(config.baseUrl);
+        setApiKey(config.apiKey);
+      },
+    );
   }, []);
+
+  const handleSaveApiSettings = useCallback(() => {
+    void invoke('update_api_config', {
+      baseUrl: apiBaseUrl,
+      apiKey,
+    }).then(() => setApiSettingsOpen(false));
+  }, [apiBaseUrl, apiKey]);
 
   /**
    * Synchronizes the React animation state with Tauri-driven overlay visibility
@@ -1334,6 +1351,7 @@ function App() {
                       onNewConversation={handleNewConversation}
                       onHistoryOpen={handleHistoryToggle}
                       onImagePreview={handleChatImagePreview}
+                      onOpenSettings={() => setApiSettingsOpen(true)}
                     />
                   ) : null}
                 </AnimatePresence>
@@ -1407,6 +1425,7 @@ function App() {
                   onImagePreview={handleAskBarImagePreview}
                   onScreenshot={handleScreenshot}
                   isDragOver={isDragOver ?? undefined}
+                  onOpenSettings={() => setApiSettingsOpen(true)}
                 />
               </div>
 
@@ -1449,6 +1468,15 @@ function App() {
       <ImagePreviewModal
         imageUrl={previewImageUrl}
         onClose={() => setPreviewImageUrl(null)}
+      />
+      <ApiSettingsModal
+        isOpen={apiSettingsOpen}
+        baseUrl={apiBaseUrl}
+        apiKey={apiKey}
+        onBaseUrlChange={setApiBaseUrl}
+        onApiKeyChange={setApiKey}
+        onClose={() => setApiSettingsOpen(false)}
+        onSave={handleSaveApiSettings}
       />
     </div>
   );

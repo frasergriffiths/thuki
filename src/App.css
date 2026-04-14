@@ -8,35 +8,35 @@
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 
   /* Brand palette — single source of truth for all color decisions */
-  --color-primary: #ff8d5c;
-  --color-secondary: #bc5c0b;
-  --color-tertiary: #e69c05;
-  --color-neutral: #1a1a1c;
+  --color-primary: #2f86ff;
+  --color-secondary: #0f4ec7;
+  --color-tertiary: #5ca7ff;
+  --color-neutral: #091225;
 
   /* Surface tokens derived from the palette */
-  --color-surface-base: rgba(22, 18, 15, 0.98);
-  --color-surface-elevated: rgba(38, 30, 24, 0.6);
-  --color-surface-border: rgba(255, 141, 92, 0.12);
+  --color-surface-base: rgba(8, 14, 28, 0.98);
+  --color-surface-elevated: rgba(20, 34, 62, 0.62);
+  --color-surface-border: rgba(47, 134, 255, 0.2);
 
   /* Text tokens */
-  --color-text-primary: #f0f0f2;
-  --color-text-secondary: #8a8a8e;
+  --color-text-primary: #e8f2ff;
+  --color-text-secondary: #8db5ea;
 
   /* Streamdown theme tokens (shadcn/ui convention) */
-  --color-muted: rgba(42, 42, 46, 0.6);
-  --color-muted-foreground: #8a8a8e;
-  --color-border: rgba(255, 141, 92, 0.1);
-  --color-sidebar: rgba(28, 28, 32, 0.95);
-  --color-foreground: #f0f0f2;
+  --color-muted: rgba(20, 34, 62, 0.55);
+  --color-muted-foreground: #8db5ea;
+  --color-border: rgba(47, 134, 255, 0.2);
+  --color-sidebar: rgba(11, 20, 38, 0.96);
+  --color-foreground: #e8f2ff;
 
   /* Elevation — input bar mode (compact floating effect, Spotlight-inspired) */
   --shadow-bar:
-    0 6px 20px -6px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 141, 92, 0.12);
+    0 10px 26px -8px rgba(0, 40, 120, 0.7), 0 0 0 1px rgba(47, 134, 255, 0.22);
 
   /* Elevation — chat window mode (layered depth without excessive spread) */
   --shadow-chat:
-    0 4px 14px -3px rgba(0, 0, 0, 0.5), 0 1px 4px -1px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 141, 92, 0.12);
+    0 6px 20px -5px rgba(0, 40, 120, 0.55), 0 1px 5px -1px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(47, 134, 255, 0.22);
 }
 
 html,
@@ -57,10 +57,10 @@ body {
     border-radius 0.5s cubic-bezier(0.12, 0.8, 0.2, 1.18);
   background-image: radial-gradient(
     ellipse 70% 40% at 50% 0%,
-    rgba(255, 141, 92, 0.08) 0%,
+    rgba(47, 134, 255, 0.2) 0%,
     transparent 65%
   );
-  border-top-color: rgba(255, 141, 92, 0.2);
+  border-top-color: rgba(47, 134, 255, 0.35);
 }
 
 /* Subtle glowing line at the very top edge — matches approved onboarding style */
@@ -74,7 +74,7 @@ body {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 141, 92, 0.35),
+    rgba(76, 168, 255, 0.7),
     transparent
   );
   pointer-events: none;
@@ -92,9 +92,9 @@ body {
  * Subtle inner glow at the top for depth perception.
  */
 .chat-bubble-user {
-  background: linear-gradient(135deg, #ff8d5c 0%, #e06b30 100%);
+  background: linear-gradient(135deg, #2f86ff 0%, #1f64d8 100%);
   box-shadow:
-    0 2px 12px -2px rgba(255, 141, 92, 0.3),
+    0 2px 12px -2px rgba(47, 134, 255, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
@@ -103,11 +103,11 @@ body {
  * Harmonizes with the warm ambient dark overlay backdrop.
  */
 .chat-bubble-ai {
-  background: rgba(36, 30, 26, 0.95);
+  background: rgba(16, 27, 48, 0.95);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-top-color: rgba(255, 141, 92, 0.1);
+  border-top-color: rgba(47, 134, 255, 0.28);
   box-shadow:
     0 2px 8px -2px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -185,9 +185,9 @@ body {
 [data-streamdown='code-block'] {
   position: relative; /* anchors the absolutely-repositioned actions wrapper */
   background: rgba(18, 18, 22, 0.95);
-  border-color: rgba(255, 141, 92, 0.22);
+  border-color: rgba(47, 134, 255, 0.35);
   box-shadow:
-    0 0 0 1px rgba(255, 141, 92, 0.06),
+    0 0 0 1px rgba(47, 134, 255, 0.2),
     0 4px 16px -4px rgba(0, 0, 0, 0.5);
 }
 
@@ -205,14 +205,14 @@ body {
 }
 
 [data-streamdown='code-block-header'] {
-  color: rgba(255, 141, 92, 0.55);
+  color: rgba(92, 167, 255, 0.75);
   padding-left: 8px;
 }
 
 [data-streamdown='code-block-body'] {
   background: transparent;
   border: none;
-  border-top: 1px solid rgba(255, 141, 92, 0.08);
+  border-top: 1px solid rgba(47, 134, 255, 0.18);
 }
 
 /* ─── Code Block Copy Button ───

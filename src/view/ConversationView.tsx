@@ -43,6 +43,7 @@ interface ConversationViewProps {
   onNewConversation?: () => void;
   /** Called when the user clicks a thumbnail to preview it. */
   onImagePreview?: (path: string) => void;
+  onOpenSettings?: () => void;
 }
 
 /**
@@ -65,6 +66,7 @@ export function ConversationView({
   onHistoryOpen,
   onNewConversation,
   onImagePreview,
+  onOpenSettings,
 }: ConversationViewProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -165,6 +167,7 @@ export function ConversationView({
         canSave={canSave}
         onNewConversation={onNewConversation}
         onHistoryOpen={onHistoryOpen}
+        onOpenSettings={onOpenSettings}
       />
 
       <div

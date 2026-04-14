@@ -140,6 +140,25 @@ const CAMERA_ICON = (
   </svg>
 );
 
+const SETTINGS_ICON = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path
+      d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-1-.5-2.1-2.1-.5-1-2-1 2-2.1.5L11 10l-2-.5-.5-2.1-2.1-.5-1 2-2 1 2 1 .5 2.1 2.1.5 1 2 1-2 2.1-.5L13 12l2 .5.5 2.1 2.1.5 1-2Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 /**
  * Renders text with command triggers highlighted in violet for the mirror div.
  * Only the first occurrence of each command is highlighted; duplicates render plain.
@@ -178,7 +197,7 @@ export function renderHighlightedText(text: string): React.ReactNode {
       );
     }
     parts.push(
-      <span key={parts.length} className="text-violet-400">
+      <span key={parts.length} className="text-primary">
         {matchedTrigger}
       </span>,
     );
@@ -231,6 +250,8 @@ interface AskBarViewProps {
   onImagePreview: (id: string) => void;
   /** Called when the user clicks the screenshot capture button. */
   onScreenshot: () => void;
+  /** Called when the user wants to configure provider endpoint credentials. */
+  onOpenSettings?: () => void;
   /**
    * Drag state passed down from the root window handler.
    * "normal" = violet ring; "max" = red ring + label; undefined = no ring.
@@ -260,6 +281,7 @@ export function AskBarView({
   onImageRemove,
   onImagePreview,
   onScreenshot,
+  onOpenSettings,
   isDragOver,
 }: AskBarViewProps) {
   /** Ref to the mirror div behind the textarea for command highlighting. */
@@ -600,6 +622,16 @@ export function AskBarView({
               className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/8 transition-colors duration-150 cursor-pointer outline-none"
             >
               {HISTORY_ICON}
+            </button>
+          )}
+          {onOpenSettings && (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              aria-label="Open API settings"
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-secondary hover:text-text-primary hover:bg-white/8 transition-colors duration-150 cursor-pointer outline-none"
+            >
+              {SETTINGS_ICON}
             </button>
           )}
 
